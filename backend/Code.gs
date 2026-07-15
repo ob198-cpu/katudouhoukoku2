@@ -3,7 +3,7 @@ const SHEETS = {
   activities: { name: 'Activities', headers: ['id', 'json', 'updatedAt'] },
   history: { name: 'History', headers: ['id', 'json', 'at'] }
 };
-const SPREADSHEET_ID = '1QMvmHhMYTp1-eJ_DEZn6wlUyBtCTe5C4h4rn1N9wZHQ';
+const SPREADSHEET_ID = '1QBpO3tfO56cLLKE1-QzV-iSUUQdAVY9q48WEIAIstDU';
 const ADMIN_HASH_KEY = 'ADMIN_PASSWORD_SHA256';
 const ADMIN_PASSWORD_MIN_LENGTH = 4;
 const HISTORY_LIMIT = 1000;
@@ -250,7 +250,7 @@ function deleteJson_(def, id) {
 }
 
 function targetSpreadsheet_() {
-  return SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SPREADSHEET_ID);
+  return SpreadsheetApp.openById(SPREADSHEET_ID);
 }
 
 function readReports_() { return readJsonRows_(SHEETS.reports).map(normalizeReport_).filter(row => row.date && row.name); }
