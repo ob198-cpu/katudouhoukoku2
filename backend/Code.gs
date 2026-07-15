@@ -4,6 +4,19 @@ const SHEETS = {
   history: { name: 'History', headers: ['id', 'json', 'at'] }
 };
 const SPREADSHEET_ID = '1QBpO3tfO56cLLKE1-QzV-iSUUQdAVY9q48WEIAIstDU';
+const SPREADSHEET_IDS = Object.freeze({
+  '2': SPREADSHEET_ID,
+  '3': '1sRc8MRQIk3-832Ux-uWA2Tz8jTysD6g8Tj6dnlHgdlU',
+  '4': '1r1-J61Z2mcB3mR2_JSg6F_9cp5Y9RJgHQV9A5ArRVGA',
+  '5': '1mhqW4hYro4msMhjR5vz2lQ0gqQPGbnOeZ4xuDaLhEeA',
+  '6': '1XNwRXM9lApaxYL-2SNjX4-fVBUH8DtrCzv7cgpEnUMA',
+  '7': '1ft7xlS5Lhy0hkwz3irEjlmnK7C4R54paZaVHDthfUf8',
+  '8': '1IRgMRKBK8EprvmiIwgTo_48n4VJtWg_lnaqe66DxJjk',
+  '9': '1j9K1cDVC_q7ZezfTJRwhQqZq_kqBKbj-MJzwNitGVPU',
+  '10': '1bAmleQh5kfzSP32ggtSIiwpKV3kTOsgUO5U-_NyIR80'
+});
+let ACTIVE_SPREADSHEET_ID = SPREADSHEET_ID;
+let ACTIVE_SYSTEM_KEY = '2';
 const ADMIN_HASH_KEY = 'ADMIN_PASSWORD_SHA256';
 const ADMIN_PASSWORD_MIN_LENGTH = 4;
 const HISTORY_LIMIT = 1000;
@@ -15,15 +28,21 @@ function setupInitialAdminPassword(password) {
   ensureAllSheets_();
 }
 
-function doGet() {
+function doGet(e) {
+  const systemKey = selectSpreadsheet_(e && e.parameter && e.parameter.systemKey);
   ensureAllSheets_();
-  return json_({ ok: true, data: { status: 'ready', hasAdminPassword: hasAdminPassword_() } });
+  return json_({ ok: true, data: { status: 'ready', systemKey: systemKey, hasAdminPassword: hasAdminPassword_() } });
 }
 
 function doPost(e) {
+  const lock = LockService.getScriptLock();
+  let locked = false;
   try {
-    ensureAllSheets_();
+    lock.waitLock(30000);
+    locked = true;
     const request = JSON.parse((e.postData && e.postData.contents) || '{}');
+    selectSpreadsheet_((e && e.parameter && e.parameter.systemKey) || request.systemKey);
+    ensureAllSheets_();
     const action = request.action || '';
     const payload = request.payload || {};
     const password = request.password || '';
@@ -31,6 +50,8 @@ function doPost(e) {
     return json_({ ok: true, data });
   } catch (error) {
     return json_({ ok: false, error: error.message || String(error) });
+  } finally {
+    if (locked) lock.releaseLock();
   }
 }
 
@@ -133,7 +154,7 @@ function restoreHistoryEntry_(historyId) {
 
 function changeAdminPassword_(newPassword) {
   if (!isValidAdminPassword_(newPassword)) throw new Error('新しい管理者パスワードは4文字以上にしてください。');
-  PropertiesService.getScriptProperties().setProperty(ADMIN_HASH_KEY, sha256(newPassword));
+  PropertiesService.getScriptProperties().setProperty(adminHashKey_(), sha256(newPassword));
   return snapshot_();
 }
 
@@ -250,7 +271,16 @@ function deleteJson_(def, id) {
 }
 
 function targetSpreadsheet_() {
-  return SpreadsheetApp.openById(SPREADSHEET_ID);
+  return SpreadsheetApp.openById(ACTIVE_SPREADSHEET_ID);
+}
+
+function selectSpreadsheet_(systemKey) {
+  const key = String(systemKey || '2').trim();
+  const spreadsheetId = SPREADSHEET_IDS[key];
+  if (!spreadsheetId) throw new Error('保存先システム番号が不正です: ' + key);
+  ACTIVE_SYSTEM_KEY = key;
+  ACTIVE_SPREADSHEET_ID = spreadsheetId;
+  return key;
 }
 
 function readReports_() { return readJsonRows_(SHEETS.reports).map(normalizeReport_).filter(row => row.date && row.name); }
@@ -386,7 +416,7 @@ function formatDateTimeForSheet_(value) {
 }
 
 function assertAdmin_(password) {
-  const stored = PropertiesService.getScriptProperties().getProperty(ADMIN_HASH_KEY);
+  const stored = adminPasswordHash_();
   if (!stored) throw new Error('管理者パスワードが未設定です。Apps Scriptで setupInitialAdminPassword を実行してください。');
   if (sha256(password || '') !== stored) throw new Error('管理者パスワードが違います。');
 }
@@ -396,7 +426,16 @@ function isValidAdminPassword_(password) {
 }
 
 function hasAdminPassword_() {
-  return !!PropertiesService.getScriptProperties().getProperty(ADMIN_HASH_KEY);
+  return !!adminPasswordHash_();
+}
+
+function adminHashKey_() {
+  return ACTIVE_SYSTEM_KEY === '2' ? ADMIN_HASH_KEY : ADMIN_HASH_KEY + '_' + ACTIVE_SYSTEM_KEY;
+}
+
+function adminPasswordHash_() {
+  const properties = PropertiesService.getScriptProperties();
+  return properties.getProperty(adminHashKey_()) || properties.getProperty(ADMIN_HASH_KEY);
 }
 
 function sha256(value) {
