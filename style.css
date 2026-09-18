@@ -714,6 +714,40 @@ tr:last-child td {
   min-width: 900px;
 }
 
+/* 日付・氏名・数値は一行を保ち、狭い画面では表内で横スクロールする。 */
+.report-table th,
+.date-check-table th,
+.report-table td:nth-child(-n+3),
+.report-table td:nth-child(5),
+.report-table td:nth-child(7),
+.date-check-table td:not(:nth-child(6)) {
+  white-space: nowrap;
+}
+
+.report-table th:nth-child(-n+2),
+.report-table td:nth-child(-n+2),
+.date-check-table th:nth-child(3),
+.date-check-table td:nth-child(3),
+.date-check-table th:nth-child(4),
+.date-check-table td:nth-child(4) {
+  min-width: 130px;
+}
+
+.report-table th:nth-child(3),
+.report-table td:nth-child(3),
+.date-check-table th:nth-child(2),
+.date-check-table td:nth-child(2) {
+  min-width: 110px;
+}
+
+.report-table td:nth-child(4),
+.date-check-table td:nth-child(6) {
+  min-width: 240px;
+  overflow-wrap: anywhere;
+}
+
+.admin-shell .card { min-width: 0; }
+
 .report-table td:nth-child(6) {
   min-width: 280px;
   white-space: pre-wrap;
