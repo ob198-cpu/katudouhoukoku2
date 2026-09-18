@@ -714,6 +714,17 @@ tr:last-child td {
   min-width: 900px;
 }
 
+.date-review-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.date-review-control button {
+  white-space: nowrap;
+}
+
 /* 日付・氏名・数値は一行を保ち、狭い画面では表内で横スクロールする。 */
 .report-table th,
 .date-check-table th,

@@ -1079,7 +1079,7 @@ function initAdminPage() {
   $("#date-check-table")?.addEventListener("click", async event => {
     const button = event.target.closest("[data-review-date-check]");
     if (!button) return;
-    if (!confirm("投稿日と送信日が異なる理由を確認し、「確認済み・問題なし」にします。\n\n投稿日と送信日の記録は変更されません。よろしいですか？")) return;
+    if (!confirm("投稿日と送信日が異なる理由を確認し、「不一致確認済み」にします。\n\n投稿日と送信日の記録は変更されません。よろしいですか？")) return;
     button.disabled = true;
     try {
       if (cloudEnabled()) {
@@ -1407,7 +1407,7 @@ function dateStatusPill(check) {
   return check.correct
     ? '<span class="status-pill ok">一致</span>'
     : check.reviewedAt
-      ? '<span class="status-pill ok">確認済み・問題なし</span>'
+      ? '<span class="status-pill ok">不一致確認済み</span>'
       : '<span class="status-pill error">要確認</span>';
 }
 
@@ -1421,7 +1421,7 @@ function renderDateCheckTable(reports) {
   container.innerHTML = `
     <div class="table-wrap">
       <table class="date-check-table">
-        <thead><tr><th>送信日時</th><th>氏名</th><th>投稿日</th><th>送信日</th><th>確認結果</th><th>活動</th><th>操作</th></tr></thead>
+        <thead><tr><th>送信日時</th><th>氏名</th><th>投稿日</th><th>送信日</th><th>確認結果</th><th>活動</th></tr></thead>
         <tbody>
           ${reports.map(report => {
             const check = reportDateCheck(report);
@@ -1431,9 +1431,8 @@ function renderDateCheckTable(reports) {
                 <td><strong>${escapeHtml(report.name)}</strong></td>
                 <td>${escapeHtml(formatDate(check.selectedDate))}</td>
                 <td>${escapeHtml(formatDate(check.submittedDate))}</td>
-                <td>${dateStatusPill(check)}</td>
+                <td><div class="date-review-control">${dateStatusPill(check)}${!check.correct && !check.reviewedAt ? `<button type="button" class="secondary-button small" data-review-date-check="${escapeHtml(report.id)}">問題なしとして確認</button>` : ''}</div></td>
                 <td>${escapeHtml(reportActivitySummaryText(report))}</td>
-                <td>${!check.correct && !check.reviewedAt ? `<button type="button" class="secondary-button small" data-review-date-check="${escapeHtml(report.id)}">問題なしとして確認</button>` : '-'}</td>
               </tr>
             `;
           }).join("")}
@@ -1767,7 +1766,7 @@ function historyReportActivityLabel(report, activityId) {
 function historyDateCheckText(report) {
   const check = report.dateCheck || {};
   if (!check.selectedDate && !check.submittedDate) return "-";
-  const result = check.correct ? "一致" : (check.reviewedAt ? "確認済み・問題なし" : "要確認");
+  const result = check.correct ? "一致" : (check.reviewedAt ? "不一致確認済み" : "要確認");
   return `${result}（投稿日 ${formatDate(check.selectedDate)} / 送信日 ${formatDate(check.submittedDate)}）`;
 }
 
