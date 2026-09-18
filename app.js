@@ -613,7 +613,8 @@ function normalizeReport(report) {
   const dateCheck = {
     selectedDate: selectedDateForCheck,
     submittedDate: submittedDateForCheck,
-    correct: selectedDateForCheck === submittedDateForCheck
+    correct: selectedDateForCheck === submittedDateForCheck,
+    reviewedAt: report?.dateCheck?.reviewedAt ? String(report.dateCheck.reviewedAt) : ""
   };
   return {
     id: report?.id || uid("report"),
@@ -716,7 +717,9 @@ async function updateReport(id, nextReport) {
     id: before.id,
     submittedAt: before.submittedAt,
     submittedDate: before.submittedDate,
-    dateCheck: before.dateCheck,
+    dateCheck: nextReport.date && nextReport.date !== before.date
+      ? { ...before.dateCheck, selectedDate: nextReport.date, reviewedAt: "" }
+      : before.dateCheck,
     createdAt: before.createdAt,
     updatedAt: new Date().toISOString()
   });
@@ -1073,6 +1076,29 @@ function initAdminPage() {
       deleteButton.disabled = false;
     }
   });
+  $("#date-check-table")?.addEventListener("click", async event => {
+    const button = event.target.closest("[data-review-date-check]");
+    if (!button) return;
+    if (!confirm("投稿日と送信日が異なる理由を確認し、「確認済み・問題なし」にします。\n\n投稿日と送信日の記録は変更されません。よろしいですか？")) return;
+    button.disabled = true;
+    try {
+      if (cloudEnabled()) {
+        await cloudAdminAction("markDateCheckReviewed", { id: button.dataset.reviewDateCheck });
+      } else {
+        const before = loadReports().find(report => report.id === button.dataset.reviewDateCheck);
+        if (!before) throw new Error("確認対象の報告が見つかりません。");
+        const updated = normalizeReport({ ...before, dateCheck: { ...before.dateCheck, reviewedAt: new Date().toISOString() }, updatedAt: new Date().toISOString() });
+        saveReports(loadReports().map(report => report.id === updated.id ? updated : report));
+        addHistory("日付確認済み", "報告", before, updated);
+      }
+      renderDateCheckView();
+      renderHistory();
+    } catch (error) {
+      alert("確認済みに更新できませんでした: " + error.message);
+    } finally {
+      button.disabled = false;
+    }
+  });
   $("#history-list")?.addEventListener("click", event => {
     const detailButton = event.target.closest("[data-history-detail]");
     if (detailButton) {
@@ -1304,6 +1330,7 @@ function reportDateCheck(report) {
   return {
     selectedDate,
     submittedDate,
+    reviewedAt: report.dateCheck?.reviewedAt || "",
     correct: !!selectedDate && !!submittedDate && selectedDate === submittedDate
   };
 }
@@ -1322,7 +1349,7 @@ function buildDateCheckStats(reports) {
     if (!userStats.has(name)) userStats.set(name, { name, total: 0, correct: 0, mistakes: 0 });
     const user = userStats.get(name);
     user.total += 1;
-    if (check.correct) {
+    if (check.correct || check.reviewedAt) {
       user.correct += 1;
     } else {
       user.mistakes += 1;
@@ -1359,7 +1386,7 @@ function renderUserDateErrorTable(items) {
   container.innerHTML = `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>利用者</th><th>報告件数</th><th>一致</th><th>要確認</th><th>要確認率</th></tr></thead>
+        <thead><tr><th>利用者</th><th>報告件数</th><th>正常・確認済み</th><th>要確認</th><th>要確認率</th></tr></thead>
         <tbody>
           ${items.map(item => `
             <tr>
@@ -1376,10 +1403,12 @@ function renderUserDateErrorTable(items) {
   `;
 }
 
-function dateStatusPill(correct) {
-  return correct
+function dateStatusPill(check) {
+  return check.correct
     ? '<span class="status-pill ok">一致</span>'
-    : '<span class="status-pill error">要確認</span>';
+    : check.reviewedAt
+      ? '<span class="status-pill ok">確認済み・問題なし</span>'
+      : '<span class="status-pill error">要確認</span>';
 }
 
 function renderDateCheckTable(reports) {
@@ -1392,7 +1421,7 @@ function renderDateCheckTable(reports) {
   container.innerHTML = `
     <div class="table-wrap">
       <table class="date-check-table">
-        <thead><tr><th>送信日時</th><th>氏名</th><th>投稿日</th><th>送信日</th><th>確認結果</th><th>活動</th></tr></thead>
+        <thead><tr><th>送信日時</th><th>氏名</th><th>投稿日</th><th>送信日</th><th>確認結果</th><th>活動</th><th>操作</th></tr></thead>
         <tbody>
           ${reports.map(report => {
             const check = reportDateCheck(report);
@@ -1402,8 +1431,9 @@ function renderDateCheckTable(reports) {
                 <td><strong>${escapeHtml(report.name)}</strong></td>
                 <td>${escapeHtml(formatDate(check.selectedDate))}</td>
                 <td>${escapeHtml(formatDate(check.submittedDate))}</td>
-                <td>${dateStatusPill(check.correct)}</td>
+                <td>${dateStatusPill(check)}</td>
                 <td>${escapeHtml(reportActivitySummaryText(report))}</td>
+                <td>${!check.correct && !check.reviewedAt ? `<button type="button" class="secondary-button small" data-review-date-check="${escapeHtml(report.id)}">問題なしとして確認</button>` : '-'}</td>
               </tr>
             `;
           }).join("")}
@@ -1737,7 +1767,7 @@ function historyReportActivityLabel(report, activityId) {
 function historyDateCheckText(report) {
   const check = report.dateCheck || {};
   if (!check.selectedDate && !check.submittedDate) return "-";
-  const result = check.correct ? "一致" : "要確認";
+  const result = check.correct ? "一致" : (check.reviewedAt ? "確認済み・問題なし" : "要確認");
   return `${result}（投稿日 ${formatDate(check.selectedDate)} / 送信日 ${formatDate(check.submittedDate)}）`;
 }
 
